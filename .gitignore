@@ -13,7 +13,8 @@ build/
 *.egg
 
 # Results (large, regenerable)
-results/*.jsonl
+results/
+
 
 # IDE
 .vscode/

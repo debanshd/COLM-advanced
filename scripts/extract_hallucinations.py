@@ -7,10 +7,10 @@ from transformers import pipeline
 # ⚙️ HARDWARE & MODEL TOGGLE
 # ==========================================
 # UNCOMMENT FOR LOCAL CPU DEBUGGING (Mac/Docker):
-MODEL_ID = "HuggingFaceTB/SmolLM-135M" 
+# MODEL_ID = "HuggingFaceTB/SmolLM-135M" 
 
 # UNCOMMENT FOR KAGGLE GPU DEPLOYMENT (T4/P100):
-# MODEL_ID = "meta-llama/Meta-Llama-3-8B-Instruct"
+MODEL_ID = "meta-llama/Meta-Llama-3-8B-Instruct"
 # ==========================================
 
 def load_collapsed_trajectories(jsonl_path, csv_path):
@@ -70,7 +70,7 @@ def main():
     extracted_data = []
 
     # Limit to first 10 for testing. Remove [:10] when running the full batch on Kaggle.
-    for run in failed_runs[:10]:
+    for run in failed_runs:
         # Safely grab Agent 2's text
         agent2_text = run.get("agent_final_texts", {}).get("Agent_2", "")
         agent1_text = run.get("agent_final_texts", {}).get("Rogue_Confident", "")
