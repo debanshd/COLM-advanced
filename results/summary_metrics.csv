@@ -1,0 +1,7 @@
+metric,value
+A_baseline,0.5666666666666667
+B_confident_rogue,0.3233333333333333
+C_control,0.5466666666666666
+D_unconfident_rogue,0.43333333333333335
+sycophancy_confident (A->B),0.5294117647058824
+sycophancy_unconfident (A->D),0.37058823529411766
