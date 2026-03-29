@@ -14,6 +14,8 @@ build/
 
 # Results (large, regenerable)
 results/
+kaggle_dataset/
+kaggle_kernel/
 
 
 # IDE
