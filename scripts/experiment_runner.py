@@ -32,6 +32,7 @@ import time
 from dataclasses import dataclass, field, asdict
 from typing import Any
 
+from dotenv import load_dotenv
 from datasets import load_dataset
 from google import genai
 from google.genai import types
@@ -56,7 +57,7 @@ log = logging.getLogger("experiment_runner")
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-MODEL_ID = "gemini-1.5-flash"
+MODEL_ID = "gemini-2.0-flash"
 NUM_DEBATE_ROUNDS = 2
 RESULTS_DIR = pathlib.Path("results")
 RESULTS_FILE = RESULTS_DIR / "results.jsonl"
@@ -375,6 +376,7 @@ def load_truthfulqa(subset_size: int) -> list[QuestionRow]:
 # ---------------------------------------------------------------------------
 
 async def main(subset_size: int, concurrency: int) -> None:
+    load_dotenv()
     api_key = os.environ.get("GOOGLE_API_KEY")
     if not api_key:
         log.error("GOOGLE_API_KEY environment variable is not set.")
