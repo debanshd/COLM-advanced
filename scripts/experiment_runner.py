@@ -57,7 +57,7 @@ log = logging.getLogger("experiment_runner")
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-MODEL_ID = "gemini-2.0-flash"
+DEFAULT_MODEL_ID = "gemini-2.5-flash"
 NUM_DEBATE_ROUNDS = 2
 RESULTS_DIR = pathlib.Path("results")
 RESULTS_FILE = RESULTS_DIR / "results.jsonl"
@@ -133,12 +133,13 @@ def _is_retryable(exc: BaseException) -> bool:
 )
 async def _generate(
     client: genai.Client,
+    model_id: str,
     system_instruction: str,
     contents: list[types.Content],
 ) -> str:
     """Call Gemini and return the text response, with retry on 429 / 5xx."""
     response = await client.aio.models.generate_content(
-        model=MODEL_ID,
+        model=model_id,
         contents=contents,
         config=types.GenerateContentConfig(
             system_instruction=system_instruction,
@@ -177,6 +178,7 @@ def _build_debate_prompt(question: str, history: list[tuple[str, str]]) -> str:
 
 async def _run_debate(
     client: genai.Client,
+    model_id: str,
     row: QuestionRow,
     agent_instructions: list[str],
     agent_labels: list[str],
@@ -210,7 +212,7 @@ async def _run_debate(
 
             async with sem:
                 response_text = await _generate(
-                    client, instruction, agent_histories[agent_idx]
+                    client, model_id, instruction, agent_histories[agent_idx]
                 )
 
             model_msg = _model_content(response_text)
@@ -227,12 +229,12 @@ async def _run_debate(
 
 
 async def run_condition_a(
-    client: genai.Client, row: QuestionRow, sem: asyncio.Semaphore
+    client: genai.Client, model_id: str, row: QuestionRow, sem: asyncio.Semaphore
 ) -> ConditionResult:
     """Condition A – Baseline: 3 standard agents, 2 rounds."""
     instructions = [STANDARD_AGENT_INSTRUCTION] * 3
     labels = ["Agent_1", "Agent_2", "Agent_3"]
-    texts = await _run_debate(client, row, instructions, labels, NUM_DEBATE_ROUNDS, sem)
+    texts = await _run_debate(client, model_id, row, instructions, labels, NUM_DEBATE_ROUNDS, sem)
     return ConditionResult(
         question_id=row.question_id,
         condition="A_baseline",
@@ -244,7 +246,7 @@ async def run_condition_a(
 
 
 async def run_condition_b(
-    client: genai.Client, row: QuestionRow, sem: asyncio.Semaphore
+    client: genai.Client, model_id: str, row: QuestionRow, sem: asyncio.Semaphore
 ) -> ConditionResult:
     """Condition B – Confident Rogue: Agent 1 confident rogue, Agents 2-3 standard."""
     rogue_instruction = CONFIDENT_ROGUE_TEMPLATE.format(
@@ -252,7 +254,7 @@ async def run_condition_b(
     )
     instructions = [rogue_instruction, STANDARD_AGENT_INSTRUCTION, STANDARD_AGENT_INSTRUCTION]
     labels = ["Rogue_Confident", "Agent_2", "Agent_3"]
-    texts = await _run_debate(client, row, instructions, labels, NUM_DEBATE_ROUNDS, sem)
+    texts = await _run_debate(client, model_id, row, instructions, labels, NUM_DEBATE_ROUNDS, sem)
     return ConditionResult(
         question_id=row.question_id,
         condition="B_confident_rogue",
@@ -264,7 +266,7 @@ async def run_condition_b(
 
 
 async def run_condition_c(
-    client: genai.Client, row: QuestionRow, sem: asyncio.Semaphore
+    client: genai.Client, model_id: str, row: QuestionRow, sem: asyncio.Semaphore
 ) -> ConditionResult:
     """Condition C – Control: 1 standard agent, CoT, no debate."""
     prompt = (
@@ -274,7 +276,7 @@ async def run_condition_c(
     )
     contents = [_user_content(prompt)]
     async with sem:
-        response_text = await _generate(client, STANDARD_AGENT_INSTRUCTION, contents)
+        response_text = await _generate(client, model_id, STANDARD_AGENT_INSTRUCTION, contents)
     return ConditionResult(
         question_id=row.question_id,
         condition="C_control",
@@ -286,7 +288,7 @@ async def run_condition_c(
 
 
 async def run_condition_d(
-    client: genai.Client, row: QuestionRow, sem: asyncio.Semaphore
+    client: genai.Client, model_id: str, row: QuestionRow, sem: asyncio.Semaphore
 ) -> ConditionResult:
     """Condition D – Unconfident Rogue: Agent 1 timid rogue, Agents 2-3 standard."""
     rogue_instruction = UNCONFIDENT_ROGUE_TEMPLATE.format(
@@ -294,7 +296,7 @@ async def run_condition_d(
     )
     instructions = [rogue_instruction, STANDARD_AGENT_INSTRUCTION, STANDARD_AGENT_INSTRUCTION]
     labels = ["Rogue_Unconfident", "Agent_2", "Agent_3"]
-    texts = await _run_debate(client, row, instructions, labels, NUM_DEBATE_ROUNDS, sem)
+    texts = await _run_debate(client, model_id, row, instructions, labels, NUM_DEBATE_ROUNDS, sem)
     return ConditionResult(
         question_id=row.question_id,
         condition="D_unconfident_rogue",
@@ -327,14 +329,14 @@ async def append_result(result: ConditionResult) -> None:
 # ---------------------------------------------------------------------------
 
 async def process_question(
-    client: genai.Client, row: QuestionRow, sem: asyncio.Semaphore
+    client: genai.Client, model_id: str, row: QuestionRow, sem: asyncio.Semaphore
 ) -> list[ConditionResult]:
     """Run all 4 conditions for a single question and write results."""
     runners = [
-        run_condition_a(client, row, sem),
-        run_condition_b(client, row, sem),
-        run_condition_c(client, row, sem),
-        run_condition_d(client, row, sem),
+        run_condition_a(client, model_id, row, sem),
+        run_condition_b(client, model_id, row, sem),
+        run_condition_c(client, model_id, row, sem),
+        run_condition_d(client, model_id, row, sem),
     ]
     # Launch all 4 conditions concurrently (semaphore caps actual API calls)
     results: list[ConditionResult] = await asyncio.gather(*runners)
@@ -375,7 +377,7 @@ def load_truthfulqa(subset_size: int) -> list[QuestionRow]:
 # Main
 # ---------------------------------------------------------------------------
 
-async def main(subset_size: int, concurrency: int) -> None:
+async def main(subset_size: int, concurrency: int, model_id: str) -> None:
     load_dotenv()
     api_key = os.environ.get("GOOGLE_API_KEY")
     if not api_key:
@@ -387,14 +389,15 @@ async def main(subset_size: int, concurrency: int) -> None:
     rows = load_truthfulqa(subset_size)
 
     log.info(
-        "Starting experiment: %d questions × 4 conditions, concurrency=%d",
+        "Starting experiment: %d questions × 4 conditions, model=%s, concurrency=%d",
         len(rows),
+        model_id,
         concurrency,
     )
     start = time.perf_counter()
 
     # Process all questions concurrently; semaphore throttles API calls
-    tasks = [process_question(client, row, sem) for row in rows]
+    tasks = [process_question(client, model_id, row, sem) for row in rows]
     all_results = await asyncio.gather(*tasks, return_exceptions=True)
 
     elapsed = time.perf_counter() - start
@@ -432,8 +435,14 @@ def cli() -> None:
         default=10,
         help="Max concurrent API calls via asyncio.Semaphore (default: 10).",
     )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=DEFAULT_MODEL_ID,
+        help=f"Gemini model ID to use (default: {DEFAULT_MODEL_ID}).",
+    )
     args = parser.parse_args()
-    asyncio.run(main(subset_size=args.subset, concurrency=args.concurrency))
+    asyncio.run(main(subset_size=args.subset, concurrency=args.concurrency, model_id=args.model))
 
 
 if __name__ == "__main__":
