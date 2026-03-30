@@ -1,3 +1,4 @@
+# 26f5d162-1d80-41ed-a396-1c3905b1c7da
 #!/usr/bin/env python3
 """
 Multi-Agent Debate Experiment Runner (SQLite + vLLM)
