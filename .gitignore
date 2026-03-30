@@ -31,3 +31,6 @@ Thumbs.db
 
 # Hugging Face cache
 .cache/
+
+# Databases
+*.db
