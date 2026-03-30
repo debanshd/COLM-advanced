@@ -34,3 +34,10 @@ Thumbs.db
 
 # Databases
 *.db
+
+# Data files (broader coverage)
+*.csv
+*.json
+*.jsonl
+*.parquet
+*.pkl
