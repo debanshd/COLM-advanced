@@ -2,15 +2,19 @@
 import json
 import os
 from datasets import load_dataset
+from dotenv import load_dotenv
+
+load_dotenv()
+HF_TOKEN = os.environ.get("HF_TOKEN")
 
 def get_dataset(path, name=None, split="train", n_rows=250, seed=42):
     print(f"Loading {path} ({name if name else split})...")
     try:
-        ds = load_dataset(path, name, split=split)
+        ds = load_dataset(path, name, split=split, token=HF_TOKEN)
     except Exception as e:
         print(f"Failed to load split '{split}' for {path}, trying without specifying split... Error: {e}")
         try:
-            ds_dict = load_dataset(path, name)
+            ds_dict = load_dataset(path, name, token=HF_TOKEN)
             splits = list(ds_dict.keys())
             if not splits:
                 raise ValueError(f"No splits found for {path}")

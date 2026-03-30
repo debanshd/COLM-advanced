@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
+from openai import AsyncOpenAI
 
 # ---------------------------------------------------------------------------
 # Logging Setup
@@ -152,26 +153,23 @@ Evaluate if this reframing passes the Coexistence Test.
         return CoexistenceResult(reasoning="Error in judging", status="FAIL")
 
 
-async def simulate_confidence_sample(client: genai.Client, model: str, context: str) -> str:
-    """Get a single output sample from the model."""
+async def simulate_confidence_sample(client, model: str, context: str) -> str:
+    """Get a single output sample from the model using local vLLM."""
+    local_client = AsyncOpenAI(base_url="http://localhost:8000/v1", api_key="sk-dummy")
+    
     prompt = f"""
 Evaluate the following context and give a definitive final answer.
 Context: {context}
 """
     try:
-        response = await client.aio.models.generate_content(
+        response = await local_client.chat.completions.create(
             model=model,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=SimulationResult,
-                temperature=0.7, # High temp for diversity
-            ),
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
         )
-        data = SimulationResult.model_validate_json(response.text)
-        return data.answer
+        return response.choices[0].message.content.strip()
     except Exception as e:
-        log.error(f"Failed to sample confidence: {e}")
+        log.error(f"Failed to sample confidence via vLLM: {e}")
         return "ERROR_OR_DIVERSE"
 
 
